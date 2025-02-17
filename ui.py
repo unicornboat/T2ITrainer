@@ -16,12 +16,12 @@ default_config = {
     "output_dir":"F:/models/kolors",
     "save_name":"kolors-lora",
     "pretrained_model_name_or_path":"kolors_models", # or local folder F:\Kolors
-    "train_data_dir":"F:/ImageSet/kolors_test", 
+    "train_data_dir":"F:/ImageSet/kolors_test",
     "vae_path":None, # or local file
     "resume_from_checkpoint":None,
-    "model_path":None, 
+    "model_path":None,
     # "logging_dir":"logs",
-    "report_to":"wandb", 
+    "report_to":"wandb",
     "rank":32,
     "train_batch_size":1,
     "repeats":10,
@@ -29,17 +29,17 @@ default_config = {
     "mixed_precision":"fp16",
     "gradient_checkpointing":True,
     "optimizer":"adamw",
-    "lr_scheduler":"cosine", 
+    "lr_scheduler":"cosine",
     "learning_rate":1e-4,
     "lr_warmup_steps":0,
     "seed":4321,
     "num_train_epochs":20,
-    "save_model_epochs":1, 
-    "validation_epochs":1, 
-    "skip_epoch":0, 
+    "save_model_epochs":1,
+    "validation_epochs":1,
+    "skip_epoch":0,
     # "break_epoch":0,
-    "skip_step":0, 
-    "validation_ratio":0.1, 
+    "skip_step":0,
+    "validation_ratio":0.1,
     "use_dora":False,
     "recreate_cache":False,
     "caption_dropout":0.1,
@@ -54,7 +54,7 @@ default_config = {
 
 
 # Function to save configuration to a specified directory
-def save_config( 
+def save_config(
         config_path,
         script,
         seed,
@@ -165,7 +165,7 @@ def load_config(config_path):
     # print(config)
     for key in config.keys():
         default_config[key] = config[key]
-            
+
     # print("default_config")
     # print(default_config)
     return config_path,default_config['script'],default_config['seed'], \
@@ -180,7 +180,7 @@ def load_config(config_path):
             default_config['use_dora'],default_config['recreate_cache'],default_config['vae_path'],default_config['resolution'], \
             default_config['use_debias'],default_config['snr_gamma'],default_config['caption_dropout'], \
             default_config['cosine_restarts'],default_config['max_time_steps']
-            # default_config['logging_dir'],default_config['break_epoch'], 
+            # default_config['logging_dir'],default_config['break_epoch'],
 
 # load config.json by default
 load_config("config.json")
@@ -228,7 +228,7 @@ def run(
             msg = "Vae need to be a single file ends with .safetensors. It should be the fp16 fix vae from https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/tree/main"
             gr.Warning(msg)
             return msg
-    
+
     inputs = {
         "seed":seed,
         # "logging_dir":logging_dir,
@@ -278,7 +278,7 @@ def run(
             else:
                 args.append(f"--{key}")
                 args.append(str(value))
-                
+
     # Call the script with the arguments
     subprocess.call(args)
     save_config(
@@ -322,7 +322,7 @@ def run(
     )
     # print(args)
     return " ".join(args)
-    
+
 
 with gr.Blocks() as demo:
     gr.Markdown(
@@ -344,8 +344,8 @@ with gr.Blocks() as demo:
             save_name = gr.Textbox(label="save_name", value=default_config["save_name"],
                                    placeholder="checkpoint save name")
         with gr.Row():
-            pretrained_model_name_or_path = gr.Textbox(label="pretrained_model_name_or_path", 
-                value=default_config["pretrained_model_name_or_path"], 
+            pretrained_model_name_or_path = gr.Textbox(label="pretrained_model_name_or_path",
+                value=default_config["pretrained_model_name_or_path"],
                 placeholder="repo name or dir contains diffusers model structure"
             )
             vae_path = gr.Textbox(label="fp16_fix_vae_path Url: https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/tree/main", value=default_config["vae_path"], placeholder="separate fp16 fix vae single file path. File end with .safetensors")
@@ -372,7 +372,7 @@ with gr.Blocks() as demo:
             use_dora = gr.Checkbox(label="use_dora", value=default_config["use_dora"])
         with gr.Row():
             optimizer = gr.Dropdown(label="optimizer", value=default_config["optimizer"], choices=["adamw","prodigy"])
-            lr_scheduler = gr.Dropdown(label="lr_scheduler", value=default_config["lr_scheduler"], 
+            lr_scheduler = gr.Dropdown(label="lr_scheduler", value=default_config["lr_scheduler"],
                         choices=["linear", "cosine", "cosine_with_restarts", "polynomial","constant", "constant_with_warmup"])
             cosine_restarts = gr.Number(label="cosine_restarts", value=default_config["cosine_restarts"], info="Only useful for lr_scheduler: cosine_with_restarts", minimum=1)
         with gr.Row():
@@ -390,7 +390,7 @@ with gr.Blocks() as demo:
             # break_epoch = gr.Number(label="break_epoch", value=default_config["break_epoch"], info="Stop train after x epoches")
             skip_step = gr.Number(label="skip_step", value=default_config["skip_step"], info="Skip x steps for validation and save checkpoint")
             validation_ratio = gr.Number(label="validation_ratio", value=default_config["validation_ratio"], info="Split dataset with this ratio for validation")
-            
+
         with gr.Row():
             recreate_cache = gr.Checkbox(label="recreate_cache", value=default_config["recreate_cache"])
             use_debias = gr.Checkbox(label="use_debias", value=default_config["use_debias"])
@@ -400,7 +400,7 @@ with gr.Blocks() as demo:
         gr.Markdown(
 """
 ## Experiment Option: resolution
-- Based target resolution (default:1024). 
+- Based target resolution (default:1024).
 - 512 or 1024 are supported.
 """)
         with gr.Row():
@@ -450,4 +450,4 @@ with gr.Blocks() as demo:
     run_btn.click(fn=run, inputs=inputs, outputs=output, api_name="run")
     save_config_btn.click(fn=save_config, inputs=inputs)
     load_config_btn.click(fn=load_config, inputs=[config_path], outputs=inputs)
-demo.launch()
+demo.launch(share=True)
