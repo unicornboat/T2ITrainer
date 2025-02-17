@@ -28,7 +28,7 @@ default_config = {
     "gradient_accumulation_steps":1,
     "mixed_precision":"fp16",
     "gradient_checkpointing":True,
-    "optimizer":"adamw",
+    "optimizer":"prodigy",
     "lr_scheduler":"cosine",
     "learning_rate":1e-4,
     "lr_warmup_steps":0,
