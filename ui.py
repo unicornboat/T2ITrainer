@@ -17,7 +17,7 @@ default_config = {
     "save_name":"lora",
     "pretrained_model_name_or_path":"/content/kolors_models", # or local folder F:\Kolors
     "train_data_dir":"/content/",
-    "vae_path":"/content/vae_model", # or local file
+    "vae_path":"/content/vae_model/sdxl_vae.safetensors", # or local file
     "resume_from_checkpoint":None,
     "model_path":None,
     # "logging_dir":"logs",
@@ -34,7 +34,7 @@ default_config = {
     "lr_warmup_steps":0,
     "seed":19890101,
     "num_train_epochs":20,
-    "save_model_epochs":10,
+    "save_model_epochs":1,
     "validation_epochs":1,
     "skip_epoch":0,
     # "break_epoch":0,
