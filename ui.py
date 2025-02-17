@@ -13,16 +13,16 @@ default_config = {
                         # "train_sd3_lora_ui.py"
                     #    "train_hunyuan_lora_ui.py","train_sd3_lora_ui.py"
                        ],
-    "output_dir":"F:/models/kolors",
-    "save_name":"kolors-lora",
-    "pretrained_model_name_or_path":"kolors_models", # or local folder F:\Kolors
-    "train_data_dir":"F:/ImageSet/kolors_test",
-    "vae_path":None, # or local file
+    "output_dir":"/content/output",
+    "save_name":"lora",
+    "pretrained_model_name_or_path":"/content/kolors_models", # or local folder F:\Kolors
+    "train_data_dir":"/content/",
+    "vae_path":"/content/vae_model", # or local file
     "resume_from_checkpoint":None,
     "model_path":None,
     # "logging_dir":"logs",
     "report_to":"wandb",
-    "rank":32,
+    "rank":16,
     "train_batch_size":1,
     "repeats":10,
     "gradient_accumulation_steps":1,
@@ -32,9 +32,9 @@ default_config = {
     "lr_scheduler":"cosine",
     "learning_rate":1e-4,
     "lr_warmup_steps":0,
-    "seed":4321,
+    "seed":19890101,
     "num_train_epochs":20,
-    "save_model_epochs":1,
+    "save_model_epochs":10,
     "validation_epochs":1,
     "skip_epoch":0,
     # "break_epoch":0,
