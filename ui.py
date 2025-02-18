@@ -17,7 +17,7 @@ default_config = {
     "save_name":"lora",
     "pretrained_model_name_or_path":"Kwai-Kolors/Kolors", # or local folder F:\Kolors
     "train_data_dir":"/content/dataset",
-    "vae_path":"/content/vae_model/sdxl_vae.safetensors", # or local file
+    "vae_path":"/content/vae_models/sdxl.vae.safetensors", # or local file
     "resume_from_checkpoint":None,
     "model_path":None,
     # "logging_dir":"logs",
