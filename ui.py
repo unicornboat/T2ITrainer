@@ -354,7 +354,7 @@ with gr.Blocks() as demo:
             resume_from_checkpoint = gr.Textbox(label="resume_from_checkpoint", value=default_config["resume_from_checkpoint"], placeholder="resume the lora weight from seleted dir")
         with gr.Row():
             train_data_dir = gr.Textbox(label="train_data_dir", value=default_config["train_data_dir"], placeholder="dir contains dataset")
-            report_to = gr.Dropdown(label="report_to", value=default_config["report_to"], choices=["wandb"])
+            report_to = gr.Dropdown(label="report_to", value=default_config["report_to"], choices=["none","wandb"])
             # logging_dir = gr.Textbox(label="logging_dir", value=default_config["logging_dir"], placeholder="logs folder")
         # with gr.Row():
 
