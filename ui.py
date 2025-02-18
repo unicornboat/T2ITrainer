@@ -15,7 +15,7 @@ default_config = {
                        ],
     "output_dir":"/content/output",
     "save_name":"lora",
-    "pretrained_model_name_or_path":"Kwai-Kolors/Kolors", # or local folder F:\Kolors
+    "pretrained_model_name_or_path":"/content/kolors_models", # or local folder F:\Kolors
     "train_data_dir":"/content/dataset",
     "vae_path":"/content/vae_models/sdxl.vae.safetensors", # or local file
     "resume_from_checkpoint":None,
@@ -32,7 +32,7 @@ default_config = {
     "lr_scheduler":"cosine",
     "learning_rate":1e-4,
     "lr_warmup_steps":0,
-    "seed":19890101,
+    "seed":4321,
     "num_train_epochs":20,
     "save_model_epochs":1,
     "validation_epochs":1,
