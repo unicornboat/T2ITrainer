@@ -118,7 +118,7 @@ from kolors.models.tokenization_chatglm import ChatGLMTokenizer
 # except:
 #     from diffusers.utils.torch_utils import randn_tensor
 
-if is_wandb_available():
+if is_wandb_available() and args.report_to == "wandb":
     import wandb
 
 from safetensors.torch import save_file
@@ -336,10 +336,11 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--report_to",
         type=str,
-        default="wandb",
+        default="none",
         help=(
             'The integration to report the results and logs to. Supported platforms are `"tensorboard"`'
             ' (default), `"wandb"` and `"comet_ml"`. Use `"all"` to report to all integrations.'
+            ' Set `"none"` to disable logging.'
         ),
     )
     parser.add_argument(
