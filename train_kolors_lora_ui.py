@@ -118,8 +118,8 @@ from kolors.models.tokenization_chatglm import ChatGLMTokenizer
 # except:
 #     from diffusers.utils.torch_utils import randn_tensor
 
-if is_wandb_available() and args.report_to == "wandb":
-    import wandb
+# if is_wandb_available() and args.report_to == "wandb":
+#     import wandb
 
 from safetensors.torch import save_file
 
