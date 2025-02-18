@@ -606,36 +606,27 @@ def main(args):
             ).to(offload_device, dtype=weight_dtype)
     else:
         # load from repo
-        # Debug 打印路径和文件信息
-        print(f"🔍 预训练模型路径: {args.pretrained_model_name_or_path}")
-        print(f"📂 UNet 目录路径: {unet_folder}")
+		unet_folder = os.path.join(args.pretrained_model_name_or_path, "unet")
+		weight_file = "diffusion_pytorch_model"
+		unet_variant = None
+		ext = ".safetensors"
 
-        weight_file = "diffusion_pytorch_model"
-        unet_variant = None
-        ext = ".safetensors"
+		print(f"🔍 预训练模型路径: {args.pretrained_model_name_or_path}")
+		print(f"📂 UNet 目录路径: {unet_folder}")
 
-        fp16_weight = os.path.join(unet_folder, f"{weight_file}.fp16{ext}")
-        fp32_weight = os.path.join(unet_folder, f"{weight_file}{ext}")
+		# diffusion_pytorch_model.fp16.safetensors
+		fp16_weight = os.path.join(unet_folder, f"{weight_file}.fp16{ext}")
+		fp32_weight = os.path.join(unet_folder, f"{weight_file}{ext}")
+		if os.path.exists(fp16_weight):
+			unet_variant = "fp16"
+		elif os.path.exists(fp32_weight):
+			unet_variant = None
+		else:
+			raise FileExistsError(f"{fp16_weight} and {fp32_weight} not found. \n Please download the model from https://huggingface.co/Kwai-Kolors/Kolors or https://hf-mirror.com/Kwai-Kolors/Kolors")
 
-        print(f"📝 预期的 FP16 权重路径: {fp16_weight}")
-        print(f"📝 预期的 FP32 权重路径: {fp32_weight}")
-
-        if os.path.exists(fp16_weight):
-            unet_variant = "fp16"
-            print(f"✅ 找到 FP16 权重文件: {fp16_weight}")
-        elif os.path.exists(fp32_weight):
-            unet_variant = None
-            print(f"✅ 找到 FP32 权重文件: {fp32_weight}")
-        else:
-            print(f"❌ 未找到 FP16 或 FP32 权重文件")
-            raise FileExistsError(f"{fp16_weight} 和 {fp32_weight} 未找到。\n"
-                                  f"请从以下地址下载模型并放入正确的目录: \n"
-                                  f"https://huggingface.co/Kwai-Kolors/Kolors 或 \n"
-                                  f"https://hf-mirror.com/Kwai-Kolors/Kolors")
-
-        unet = UNet2DConditionModel.from_pretrained(
-                    unet_folder, variant=unet_variant
-                ).to(offload_device, dtype=weight_dtype)
+		unet = UNet2DConditionModel.from_pretrained(
+					unet_folder, variant=unet_variant
+				).to(offload_device, dtype=weight_dtype)
 
     if not (args.model_path is None or args.model_path == ""):
         # load from file
