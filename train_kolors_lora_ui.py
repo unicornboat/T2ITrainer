@@ -336,12 +336,12 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--report_to",
         type=str,
-        default="none",
+        default="",
         help=(
-            'The integration to report the results and logs to. Supported platforms are `"tensorboard"`'
-            ' (default), `"wandb"` and `"comet_ml"`. Use `"all"` to report to all integrations.'
-            ' Set `"none"` to disable logging.'
-        ),
+			'The integration to report the results and logs to. Supported platforms are `"tensorboard"`'
+			' (default), `"wandb"` and `"comet_ml"`. Use `"all"` to report to all integrations.'
+			' Set to empty string `""` to disable logging.'
+		),
     )
     parser.add_argument(
         "--mixed_precision",
@@ -566,7 +566,7 @@ def main(args):
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision=args.mixed_precision,
-        log_with=args.report_to,
+        log_with=None,
         project_config=accelerator_project_config,
         kwargs_handlers=[kwargs],
     )
