@@ -611,9 +611,6 @@ def main(args):
 		unet_variant = None
 		ext = ".safetensors"
 
-		print(f"🔍 预训练模型路径: {args.pretrained_model_name_or_path}")
-		print(f"📂 UNet 目录路径: {unet_folder}")
-
 		# diffusion_pytorch_model.fp16.safetensors
 		fp16_weight = os.path.join(unet_folder, f"{weight_file}.fp16{ext}")
 		fp32_weight = os.path.join(unet_folder, f"{weight_file}{ext}")
