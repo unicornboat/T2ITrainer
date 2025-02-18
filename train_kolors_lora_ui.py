@@ -91,8 +91,8 @@ from diffusers.utils.torch_utils import is_compiled_module
 
 # from diffusers import StableDiffusionXLPipeline
 from kolors.pipelines.pipeline_stable_diffusion_xl_chatglm_256 import StableDiffusionXLPipeline
-from tqdm import tqdm 
-# from PIL import Image 
+from tqdm import tqdm
+# from PIL import Image
 
 from sklearn.model_selection import train_test_split
 
@@ -120,7 +120,7 @@ from kolors.models.tokenization_chatglm import ChatGLMTokenizer
 
 if is_wandb_available():
     import wandb
-    
+
 from safetensors.torch import save_file
 
 from utils.dist_utils import flush
@@ -209,7 +209,7 @@ def parse_args(input_args=None):
             ' `--checkpointing_steps`, or `"latest"` to automatically select the last available checkpoint.'
         ),
     )
-    
+
     parser.add_argument(
         "--save_name",
         type=str,
@@ -218,7 +218,7 @@ def parse_args(input_args=None):
             "save name prefix for saving checkpoints"
         ),
     )
-    
+
     parser.add_argument(
         "--gradient_accumulation_steps",
         type=int,
@@ -260,8 +260,8 @@ def parse_args(input_args=None):
             'for lr_scheduler cosine_with_restarts'
         ),
     )
-    
-    
+
+
     parser.add_argument(
         "--lr_warmup_steps", type=int, default=50, help="Number of steps for the warmup in the lr scheduler."
     )
@@ -361,8 +361,8 @@ def parse_args(input_args=None):
             "train data image folder"
         ),
     )
-    
-    
+
+
     # parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
 
     parser.add_argument(
@@ -389,7 +389,7 @@ def parse_args(input_args=None):
         default=0,
         help=("skip val and save model before x step"),
     )
-    
+
     # parser.add_argument(
     #     "--break_epoch",
     #     type=int,
@@ -441,7 +441,7 @@ def parse_args(input_args=None):
         action="store_true",
         help="Use debiased estimation loss",
     )
-    
+
     parser.add_argument(
         "--snr_gamma",
         type=float,
@@ -455,7 +455,7 @@ def parse_args(input_args=None):
         default=1100,
         help="Max time steps limitation. The training timesteps would limited as this value. 0 to max_time_steps",
     )
-    
+
     if input_args is not None:
         args = parser.parse_args(input_args)
     else:
@@ -480,10 +480,10 @@ def parse_args(input_args=None):
     return args
 
 def main(args):
-    
+
     if not os.path.exists(args.output_dir): os.makedirs(args.output_dir)
     if not os.path.exists(args.logging_dir): os.makedirs(args.logging_dir)
-    
+
     # args.scale_lr = False
     use_8bit_adam = True
     adam_beta1 = 0.9
@@ -504,22 +504,22 @@ def main(args):
     prodigy_use_bias_correction = True
     prodigy_safeguard_warmup = True
     prodigy_d_coef = 2
-    
-    
+
+
     lr_num_cycles = args.cosine_restarts
     lr_power = 1
-    
+
     # this is for consistence validation. all validation would use this seed to generate the same validation set
     val_seed = random.randint(1, 100)
-    
+
     # test max_time_steps
     # args.max_time_steps = 600
-    
+
     # args.seed = 4321
     # args.logging_dir = 'logs'
     # args.mixed_precision = "bf16"
     # args.report_to = "wandb"
-    
+
     # args.output_dir = 'F:/models/kolors'
     # args.save_name = "kolors_test"
     # args.rank = 32
@@ -537,7 +537,7 @@ def main(args):
     # args.train_data_dir = "F:/ImageSet/pixart_test_cropped"
     # # args.train_data_dir = "F:/ImageSet/kolors_test"
     # # args.train_data_dir = "F:/ImageSet/pixart_test_one"
-    
+
     # args.learning_rate = 1e-4
     # args.optimizer = "adamw"
     # args.lr_warmup_steps = 1
@@ -552,13 +552,13 @@ def main(args):
     # args.caption_dropout = 0.2
     # args.vae_path = "F:/models/VAE/sdxl_vae.safetensors"
 
-    
-    
+
+
     # create metadata.jsonl if not exist
     metadata_suffix = "kolors"
     metadata_path = os.path.join(args.train_data_dir, f'metadata_{metadata_suffix}.json')
     val_metadata_path =  os.path.join(args.train_data_dir, f'val_metadata_{metadata_suffix}.json')
-    
+
     logging_dir = "test"
     accelerator_project_config = ProjectConfiguration(project_dir=args.output_dir, logging_dir=logging_dir)
     kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
@@ -569,7 +569,7 @@ def main(args):
         project_config=accelerator_project_config,
         kwargs_handlers=[kwargs],
     )
-    
+
     # For mixed precision training we cast all non-trainable weights (vae, non-lora text_encoder and non-lora transformer) to half-precision
     # as these weights are only used for inference, keeping weights in full precision is not required.
     weight_dtype = torch.float32
@@ -577,28 +577,28 @@ def main(args):
         weight_dtype = torch.float16
     elif accelerator.mixed_precision == "bf16":
         weight_dtype = torch.bfloat16
-    
+
 
     # Load scheduler and models
     noise_scheduler = DDPMScheduler.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="scheduler"
     )
-    
+
     # prepare noise scheduler
     # noise_scheduler = DDPMScheduler(
-    #     beta_start=0.00085, beta_end=0.014, beta_schedule="scaled_linear", num_train_timesteps=1100, clip_sample=False, 
+    #     beta_start=0.00085, beta_end=0.014, beta_schedule="scaled_linear", num_train_timesteps=1100, clip_sample=False,
     #     dynamic_thresholding_ratio=0.995, prediction_type="epsilon", steps_offset=1, timestep_spacing="leading", trained_betas=None
     # )
     if args.use_debias or (args.snr_gamma is not None and args.snr_gamma > 0):
         prepare_scheduler_for_custom_training(noise_scheduler, accelerator.device)
-    
+
     # noise_scheduler_copy = copy.deepcopy(noise_scheduler)
-    
+
     offload_device = accelerator.device
-    
+
     if not os.path.exists(metadata_path) or not os.path.exists(val_metadata_path):
         offload_device = torch.device("cpu")
-    
+
     # load from repo
     if args.pretrained_model_name_or_path == "Kwai-Kolors/Kolors":
         unet = UNet2DConditionModel.from_pretrained(
@@ -606,24 +606,37 @@ def main(args):
             ).to(offload_device, dtype=weight_dtype)
     else:
         # load from repo
-        unet_folder = os.path.join(args.pretrained_model_name_or_path, "unet")
+        # Debug 打印路径和文件信息
+        print(f"🔍 预训练模型路径: {args.pretrained_model_name_or_path}")
+        print(f"📂 UNet 目录路径: {unet_folder}")
+
         weight_file = "diffusion_pytorch_model"
         unet_variant = None
         ext = ".safetensors"
-        # diffusion_pytorch_model.fp16.safetensors
+
         fp16_weight = os.path.join(unet_folder, f"{weight_file}.fp16{ext}")
         fp32_weight = os.path.join(unet_folder, f"{weight_file}{ext}")
+
+        print(f"📝 预期的 FP16 权重路径: {fp16_weight}")
+        print(f"📝 预期的 FP32 权重路径: {fp32_weight}")
+
         if os.path.exists(fp16_weight):
             unet_variant = "fp16"
+            print(f"✅ 找到 FP16 权重文件: {fp16_weight}")
         elif os.path.exists(fp32_weight):
             unet_variant = None
+            print(f"✅ 找到 FP32 权重文件: {fp32_weight}")
         else:
-            raise FileExistsError(f"{fp16_weight} and {fp32_weight} not found. \n Please download the model from https://huggingface.co/Kwai-Kolors/Kolors or https://hf-mirror.com/Kwai-Kolors/Kolors")
-            
+            print(f"❌ 未找到 FP16 或 FP32 权重文件")
+            raise FileExistsError(f"{fp16_weight} 和 {fp32_weight} 未找到。\n"
+                                  f"请从以下地址下载模型并放入正确的目录: \n"
+                                  f"https://huggingface.co/Kwai-Kolors/Kolors 或 \n"
+                                  f"https://hf-mirror.com/Kwai-Kolors/Kolors")
+
         unet = UNet2DConditionModel.from_pretrained(
                     unet_folder, variant=unet_variant
                 ).to(offload_device, dtype=weight_dtype)
-    
+
     if not (args.model_path is None or args.model_path == ""):
         # load from file
         state_dict = safetensors.torch.load_file(args.model_path, device="cpu")
@@ -668,7 +681,7 @@ def main(args):
             for model in models:
                 if isinstance(model, type(unwrap_model(unet))):
                     unet_lora_layers_to_save = convert_state_dict_to_diffusers(get_peft_model_state_dict(model))
-                
+
                 else:
                     raise ValueError(f"unexpected save model: {model.__class__}")
 
@@ -680,7 +693,7 @@ def main(args):
                 output_dir,
                 unet_lora_layers=unet_lora_layers_to_save
             )
-            
+
             # save to kohya
             peft_state_dict = convert_all_state_dict_to_peft(unet_lora_layers_to_save)
             kohya_state_dict = convert_state_dict_to_kohya(peft_state_dict)
@@ -737,7 +750,7 @@ def main(args):
     # Create train dataset
     # ==========================================================
     # data_files = {}
-    # this part need more work afterward, you need to prepare 
+    # this part need more work afterward, you need to prepare
     # the train files and val files split first before the training
     if args.train_data_dir is not None:
         input_dir = args.train_data_dir
@@ -745,11 +758,11 @@ def main(args):
         cache_list = []
         recreate_cache = args.recreate_cache
         # resolution = args.resolution_config.split(",")
-        
+
         supported_image_types = ['.jpg','.jpeg','.png','.webp']
         files = glob.glob(f"{input_dir}/**", recursive=True)
         image_files = [f for f in files if os.path.splitext(f)[-1].lower() in supported_image_types]
-        
+
         # function to remove metadata datarows which in not exist in directory
         def align_metadata(datarows,image_files,metadata_path):
             new_metadatarows = []
@@ -761,7 +774,7 @@ def main(args):
             with open(metadata_path, "w", encoding='utf-8') as writefile:
                 writefile.write(json.dumps(new_metadatarows))
             return new_metadatarows
-        
+
         metadata_datarows = []
         # single_image_training = False
         if os.path.exists(metadata_path):
@@ -771,21 +784,21 @@ def main(args):
                 metadata_datarows = align_metadata(metadata_datarows,image_files,metadata_path)
         # else:
         #     single_image_training = len(image_files) == 1
-        
+
         val_metadata_datarows = []
         if os.path.exists(val_metadata_path):
             with open(val_metadata_path, "r", encoding='utf-8') as readfile:
                 val_metadata_datarows = json.loads(readfile.read())
                 # remove images in metadata_datarows or val_metadata_datarows but not in image_files, handle deleted images
                 val_metadata_datarows = align_metadata(val_metadata_datarows,image_files,val_metadata_path)
-        
+
         # full datarows is aligned, all datarows conatins exists image
         if len(metadata_datarows) == 1:
             full_datarows = metadata_datarows
             # single_image_training = True
         else:
             full_datarows = metadata_datarows + val_metadata_datarows
-            
+
         datarows = full_datarows
         # if not single_image_training:
         #     single_image_training = (len(resolution) > 1 and len(full_datarows) == len(resolution)) or len(full_datarows) == len(resolution)
@@ -827,13 +840,13 @@ def main(args):
                                 cache_list.append(datarow['image_path'])
                                 corrupted = True
                             break
-                        
+
                         file_path = datarow[path_name]
                         file_path_md5 = ''
                         if os.path.exists(file_path):
                             with open(file_path, 'rb') as f:
                                 file_path_md5 = md5(f.read()).hexdigest()
-                        
+
                         if file_path_md5 != datarow[md5_name]:
                             if datarow['image_path'] not in cache_list:
                                 cache_list.append(datarow['image_path'])
@@ -842,9 +855,9 @@ def main(args):
                     if not corrupted:
                         new_datarows.append(datarow)
                 return cache_list, new_datarows
-                                
+
             # for metadata_file in metadata_files:
-            # Validate two datasets 
+            # Validate two datasets
             # loop all the datarow and check file md5 for integrity
             # print(f"Checking integrity: ")
             # # fine images not in full_datarows, handle added images
@@ -854,7 +867,7 @@ def main(args):
                 print(f"Images exists but not in metadata: {len(missing_images)}")
                 # add missing images to cache list
                 cache_list += missing_images
-            
+
             # check full_datarows md5
             corrupted_files, new_datarows = check_md5(full_datarows,md5_pairs)
             # skip corrupted datarows, update full datarows
@@ -863,13 +876,13 @@ def main(args):
                 print(f"corrupted files: {len(corrupted_files)}")
                 # add corrupted files to cache list
                 cache_list += corrupted_files
-                    
+
         if len(cache_list)>0:
             # Load the tokenizers
             tokenizer_one = ChatGLMTokenizer.from_pretrained(
                 args.pretrained_model_name_or_path,
                 subfolder="text_encoder",
-                revision=revision, 
+                revision=revision,
                 variant=variant
             )
 
@@ -896,14 +909,14 @@ def main(args):
                     vae_variant = None
                 else:
                     raise FileExistsError(f"{fp16_weight} and {fp32_weight} not found. \n Please download the model from https://huggingface.co/Kwai-Kolors/Kolors or https://hf-mirror.com/Kwai-Kolors/Kolors")
-                    
+
                 vae = AutoencoderKL.from_pretrained(
                         args.pretrained_model_name_or_path, variant=vae_variant
                     )
-            
+
             vae.requires_grad_(False)
             text_encoder_one.requires_grad_(False)
-            
+
             vae.to(accelerator.device, dtype=torch.float32)
             text_encoder_one.to(accelerator.device, dtype=weight_dtype)
 
@@ -911,10 +924,10 @@ def main(args):
             text_encoders = [text_encoder_one]
             # create metadata and latent cache
             cached_datarows = create_metadata_cache(tokenizers,text_encoders,vae,cache_list,metadata_path=metadata_path,recreate_cache=args.recreate_cache, resolution_config=args.resolution)
-            
+
             # merge newly cached datarows to full_datarows
             full_datarows += cached_datarows
-            
+
             # reset validation_datarows
             validation_datarows = []
             # prepare validation_slipt
@@ -930,35 +943,35 @@ def main(args):
                 datarows = training_datarows
             else:
                 datarows = full_datarows
-            
+
             # Serializing json
             json_object = json.dumps(datarows, indent=4)
             # update metadata file
             with open(metadata_path, "w", encoding='utf-8') as outfile:
                 outfile.write(json_object)
-            
+
             if len(validation_datarows) > 0:
                 # Serializing json
                 val_json_object = json.dumps(validation_datarows, indent=4)
                 # update val metadata file
                 with open(val_metadata_path, "w", encoding='utf-8') as outfile:
                     outfile.write(val_json_object)
-                
+
             # clear memory
             del validation_datarows
             del vae, tokenizer_one, text_encoder_one
             gc.collect()
             torch.cuda.empty_cache()
-    
+
     # repeat_datarows = []
     # for datarow in datarows:
     #     for i in range(args.repeats):
     #         repeat_datarows.append(datarow)
     # datarows = repeat_datarows
-    
+
     datarows = datarows * args.repeats
     # resume from cpu after cache files
-    
+
     unet.to(accelerator.device)
 
     # Make sure the trainable params are in float32.
@@ -971,7 +984,7 @@ def main(args):
     # Optimization parameters
     unet_lora_parameters_with_lr = {"params": unet_lora_parameters, "lr": args.learning_rate}
     params_to_optimize = [unet_lora_parameters_with_lr]
-    
+
     # Optimizer creation
     if not (args.optimizer.lower() == "prodigy" or args.optimizer.lower() == "adamw"):
         logger.warning(
@@ -1040,11 +1053,11 @@ def main(args):
             use_bias_correction=prodigy_use_bias_correction,
             safeguard_warmup=prodigy_safeguard_warmup,
         )
-    
+
     # ================================================================
-    # End create embedding 
+    # End create embedding
     # ================================================================
-    
+
     def collate_fn(examples):
         # not sure if this would have issue when using multiple aspect ratio
         latents = torch.stack([example["latent"] for example in examples])
@@ -1072,8 +1085,8 @@ def main(args):
         collate_fn=collate_fn,
         num_workers=dataloader_num_workers,
     )
-    
-    
+
+
 
     # Scheduler and math around the number of training steps.
     overrode_max_train_steps = False
@@ -1178,7 +1191,7 @@ def main(args):
         # Only show the progress bar once on each machine.
         disable=not accelerator.is_local_main_process,
     )
-    
+
     max_time_steps = noise_scheduler.config.num_train_timesteps
     if args.max_time_steps is not None and args.max_time_steps > 0:
         max_time_steps = args.max_time_steps
@@ -1189,18 +1202,18 @@ def main(args):
             with accelerator.accumulate(unet):
                 with accelerator.autocast():
                     latents = batch["latents"].to(accelerator.device)
-                    
+
                     bsz, _, _, _ = latents.shape
-                    
+
                     indices = torch.randint(0, max_time_steps, (bsz,))
                     timesteps = noise_scheduler.timesteps[indices].to(device=accelerator.device)
-                    
+
                     noise = torch.randn_like(latents)
-                    
+
                     # Add noise to the model input according to the noise magnitude at each timestep
                     # (this is the forward diffusion process)
                     noisy_model_input = noise_scheduler.add_noise(latents, noise, timesteps)
-                    
+
                     add_time_ids = batch["time_ids"].to(accelerator.device, dtype=weight_dtype)
                     unet_added_conditions = {"time_ids": add_time_ids}
                     prompt_embeds = batch["prompt_embeds"].to(accelerator.device)
@@ -1213,7 +1226,7 @@ def main(args):
                         added_cond_kwargs=unet_added_conditions,
                         return_dict=False,
                     )[0]
-                    
+
                     # ====================Debug latent====================
                     # vae = AutoencoderKL.from_single_file(
                     #     vae_path
@@ -1225,10 +1238,10 @@ def main(args):
                     # image = image_processor.postprocess(image, output_type="pil")[0]
                     # image.save("model_pred.png")
                     # ====================Debug latent====================
-                    
-                    
+
+
                     target = noise
-                    
+
                     # code reference: https://github.com/huggingface/diffusers/blob/main/examples/text_to_image/train_text_to_image.py
                     if args.snr_gamma is None or args.snr_gamma == 0:
                         loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
@@ -1241,9 +1254,9 @@ def main(args):
                         # referenced from https://github.com/kohya-ss/sd-scripts/blob/25f961bc779bc79aef440813e3e8e92244ac5739/sdxl_train.py
                         if args.use_debias:
                             loss = apply_debiased_estimation(loss,timesteps,noise_scheduler)
-                            
+
                         loss = loss.mean()
-                    
+
                     # Backpropagate
                     accelerator.backward(loss)
                     step_loss = loss.detach().item()
@@ -1262,7 +1275,7 @@ def main(args):
                     if accelerator.sync_gradients:
                         progress_bar.update(1)
                         global_step += 1
-                    
+
                     lr = lr_scheduler.get_last_lr()[0]
                     lr_name = "lr"
                     if args.optimizer == "prodigy":
@@ -1274,26 +1287,26 @@ def main(args):
                     logs = {"step_loss": step_loss, lr_name: lr, "epoch": epoch}
                     accelerator.log(logs, step=global_step)
                     progress_bar.set_postfix(**logs)
-                    
+
                     if global_step >= max_train_steps:
                         break
                     del step_loss
                     gc.collect()
                     torch.cuda.empty_cache()
-            
+
         # ==================================================
         # validation part
         # ==================================================
-        
+
         if global_step < args.skip_step:
             continue
-        
-        
+
+
         # store rng before validation
         before_state = torch.random.get_rng_state()
         np_seed = np.random.seed()
         py_state = python_get_rng_state()
-        
+
         if accelerator.is_main_process:
             if (epoch >= args.skip_epoch and epoch % args.save_model_epochs == 0) or epoch == args.num_train_epochs - 1:
                 accelerator.wait_for_everyone()
@@ -1301,7 +1314,7 @@ def main(args):
                     save_path = os.path.join(args.output_dir, f"{args.save_name}-{global_step}")
                     accelerator.save_state(save_path)
                     logger.info(f"Saved state to {save_path}")
-            
+
             # only execute when val_metadata_path exists
             if ((epoch >= args.skip_epoch and epoch % args.validation_epochs == 0) or epoch == args.num_train_epochs - 1) and os.path.exists(val_metadata_path):
                 with torch.no_grad():
@@ -1312,20 +1325,20 @@ def main(args):
                     dataloader_generator = torch.Generator()
                     dataloader_generator.manual_seed(val_seed)
                     torch.backends.cudnn.deterministic = True
-                    
+
                     validation_datarows = []
                     with open(val_metadata_path, "r", encoding='utf-8') as readfile:
                         validation_datarows = json.loads(readfile.read())
-                    
+
                     if len(validation_datarows)>0:
                         validation_dataset = CachedImageDataset(validation_datarows,conditional_dropout_percent=0)
-                        
+
                         batch_size  = 1
                         # batch_size = args.train_batch_size
                         # handle batch size > validation dataset size
                         # if batch_size > len(validation_datarows):
                         #     batch_size = 1
-                        
+
                         val_batch_sampler = BucketBatchSampler(validation_dataset, batch_size=batch_size, drop_last=True)
 
                         #initialize the DataLoader with the bucket batch sampler
@@ -1337,10 +1350,10 @@ def main(args):
                         )
 
                         print("\nStart val_loss\n")
-                        
+
                         total_loss = 0.0
                         num_batches = len(val_dataloader)
-                        # if no val data, skip the following 
+                        # if no val data, skip the following
                         if num_batches == 0:
                             print("No validation data, skip validation.")
                         else:
@@ -1349,16 +1362,16 @@ def main(args):
                             for i, batch in tqdm(enumerate_val_dataloader,position=1):
                                 latents = batch["latents"].to(accelerator.device)
                                 bsz, _, _, _ = latents.shape
-                                
+
                                 indices = torch.randint(0, noise_scheduler.config.num_train_timesteps, (bsz,))
                                 timesteps = noise_scheduler.timesteps[indices].to(device=accelerator.device)
-                                
+
                                 noise = torch.randn_like(latents)
-                                
+
                                 # Add noise to the model input according to the noise magnitude at each timestep
                                 # (this is the forward diffusion process)
                                 noisy_model_input = noise_scheduler.add_noise(latents, noise, timesteps)
-                                
+
                                 add_time_ids = batch["time_ids"].to(accelerator.device, dtype=weight_dtype)
                                 unet_added_conditions = {"time_ids": add_time_ids}
                                 prompt_embeds = batch["prompt_embeds"].to(accelerator.device)
@@ -1371,7 +1384,7 @@ def main(args):
                                     added_cond_kwargs=unet_added_conditions,
                                     return_dict=False,
                                 )[0]
-                                
+
                                 target = noise
                                 # loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
                                 # code reference: https://github.com/huggingface/diffusers/blob/main/examples/text_to_image/train_text_to_image.py
@@ -1394,19 +1407,19 @@ def main(args):
                                     loss = loss.mean(dim=list(range(1, len(loss.shape)))) * mse_loss_weights
                                     loss = loss.mean()
                                     del mse_loss_weights
-                                
-                                
+
+
                                 # referenced from https://github.com/kohya-ss/sd-scripts/blob/25f961bc779bc79aef440813e3e8e92244ac5739/sdxl_train.py
                                 if args.use_debias:
                                     loss = apply_debiased_estimation(loss,timesteps,noise_scheduler)
-                                
+
                                 total_loss+=loss.detach()
                                 del latents, target, loss, model_pred,  timesteps,  bsz, noise, noisy_model_input
                                 gc.collect()
                                 torch.cuda.empty_cache()
-                                
+
                             avg_loss = total_loss / num_batches
-                            
+
                             lr = lr_scheduler.get_last_lr()[0]
                             lr_name = "val_lr"
                             if args.optimizer == "prodigy":
@@ -1421,23 +1434,23 @@ def main(args):
                         gc.collect()
                         torch.cuda.empty_cache()
                         print("\nEnd val_loss\n")
-            
+
         # restore rng before validation
         np.random.seed(np_seed)
         torch.random.set_rng_state(before_state)
         torch.backends.cudnn.deterministic = False
         version, state, gauss = py_state
         python_set_rng_state((version, tuple(state), gauss))
-        
+
         # del before_state, np_seed, py_state
         gc.collect()
         torch.cuda.empty_cache()
-        
-        
+
+
         # ==================================================
         # end validation part
         # ==================================================
-    
+
     accelerator.end_training()
     print("Saved to ")
     print(args.output_dir)
