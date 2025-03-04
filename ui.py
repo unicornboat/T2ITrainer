@@ -15,15 +15,15 @@ default_config = {
                        ],
     "output_dir":"/kaggle/working/output",
     "save_name":"lora",
-    "pretrained_model_name_or_path":"/kaggle/temp/kolors_models", # or local folder F:\Kolors
+    "pretrained_model_name_or_path":"/kaggle/input/kwaikolors", # or local folder F:\Kolors
     "train_data_dir":"/kaggle/temp/",
-    "vae_path":"/kaggle/temp/vae_models/sdxl.vae.safetensors", # or local file
+    "vae_path":"/kaggle/input/sdxl-vae-fp16-fix/sdxl_vae.safetensors", # or local file
     "resume_from_checkpoint":None,
     "model_path":None,
     # "logging_dir":"logs",
     "report_to":"none",
     "rank":32,
-    "train_batch_size":10,
+    "train_batch_size":100,
     "repeats":10,
     "gradient_accumulation_steps":1,
     "mixed_precision":"fp16",
