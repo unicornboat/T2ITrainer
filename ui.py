@@ -273,14 +273,14 @@ def run(
     # args = ["python", "train_sd3_lora_ui.py"]  # replace "your_script.py" with the name of your script
     # script = "test_.pyt"
     args = ["accelerate", "launch", f"--num_processes={int(num_gpus)}", script]
-    for key, value in inputs.items():
-		if value is not None:
-			if isinstance(value, bool):
-				if value:
-					args.append(f"--{key}")
-			else:
-				args.append(f"--{key}")
-				args.append(str(value))
+        for key, value in inputs.items():
+            if value is not None:
+                if isinstance(value, bool):
+                    if value:
+                        args.append(f"--{key}")
+                else:
+                    args.append(f"--{key}")
+                    args.append(str(value))
 
     # 使用 Popen 运行并捕获输出
     process = subprocess.Popen(
