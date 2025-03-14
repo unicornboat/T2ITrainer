@@ -7,6 +7,7 @@ import os
 
 
 default_config = {
+	"num_gpus": 1,
     "script": "train_kolors_lora_ui.py",
     "script_choices": [
                         "train_kolors_lora_ui.py",
@@ -91,7 +92,8 @@ def save_config(
         snr_gamma,
         caption_dropout,
         cosine_restarts,
-        max_time_steps
+        max_time_steps,
+        num_gpus
     ):
     config = {
         "script":script,
@@ -130,7 +132,8 @@ def save_config(
         'snr_gamma':snr_gamma,
         "caption_dropout":caption_dropout,
         "cosine_restarts":cosine_restarts,
-        "max_time_steps":max_time_steps
+        "max_time_steps":max_time_steps,
+        "num_gpus": num_gpus
     }
     # config_path = os.path.join(config_dir, f"{filename}{ext}")
     with open(config_path, 'w') as f:
@@ -179,7 +182,7 @@ def load_config(config_path):
             default_config['pretrained_model_name_or_path'],default_config['model_path'],default_config['resume_from_checkpoint'], \
             default_config['use_dora'],default_config['recreate_cache'],default_config['vae_path'],default_config['resolution'], \
             default_config['use_debias'],default_config['snr_gamma'],default_config['caption_dropout'], \
-            default_config['cosine_restarts'],default_config['max_time_steps']
+            default_config['cosine_restarts'],default_config['max_time_steps'],default_config['num_gpus']
             # default_config['logging_dir'],default_config['break_epoch'],
 
 # load config.json by default
@@ -269,18 +272,33 @@ def run(
     # Convert the inputs dictionary to a list of arguments
     # args = ["python", "train_sd3_lora_ui.py"]  # replace "your_script.py" with the name of your script
     # script = "test_.pyt"
-    args = [sys.executable, script]
+    args = ["accelerate", "launch", f"--num_processes={int(num_gpus)}", script]
     for key, value in inputs.items():
-        if value is not None:
-            if isinstance(value, bool):  # exclude boolean values
-                if value == True:
-                    args.append(f"--{key}")
-            else:
-                args.append(f"--{key}")
-                args.append(str(value))
+		if value is not None:
+			if isinstance(value, bool):
+				if value:
+					args.append(f"--{key}")
+			else:
+				args.append(f"--{key}")
+				args.append(str(value))
 
-    # Call the script with the arguments
-    subprocess.call(args)
+    # 使用 Popen 运行并捕获输出
+    process = subprocess.Popen(
+		args,
+		stdout=subprocess.PIPE,
+		stderr=subprocess.STDOUT,
+		universal_newlines=True,
+		cwd=os.getcwd()
+	)
+
+	# 实时捕获输出
+	output = ""
+	for line in iter(process.stdout.readline, ''):
+		output += line
+		print(line, end='')  # 在控制台输出，便于调试
+		yield output  # 实时返回给 Gradio 界面
+
+	process.wait()
     save_config(
         config_path,
         script,
@@ -320,9 +338,7 @@ def run(
         cosine_restarts,
         max_time_steps
     )
-    # print(args)
-    return " ".join(args)
-
+    return output
 
 with gr.Blocks() as demo:
     gr.Markdown(
@@ -381,6 +397,9 @@ with gr.Blocks() as demo:
             seed = gr.Number(label="seed", value=default_config["seed"])
 
     with gr.Accordion("Misc"):
+		with gr.Row():
+			num_gpus = gr.Number(label="Number of GPUs", value=default_config["num_gpus"], minimum=1, info="Number of GPUs to use for training")
+            inputs.append(num_gpus)
         with gr.Row():
             num_train_epochs = gr.Number(label="num_train_epochs", value=default_config["num_train_epochs"], info="Total epoches of the training")
             save_model_epochs = gr.Number(label="save_model_epochs", value=default_config["save_model_epochs"], info="Save checkpoint when x epoches")
@@ -447,7 +466,7 @@ with gr.Blocks() as demo:
     output = gr.Textbox(label="Output Box")
     run_btn = gr.Button("Run")
     # inputs.append(config_path)
-    run_btn.click(fn=run, inputs=inputs, outputs=output, api_name="run")
+    run_btn.click(fn=run, inputs=inputs, outputs=output, _js="function(){return [...arguments].slice(0, -1)}")
     save_config_btn.click(fn=save_config, inputs=inputs)
     load_config_btn.click(fn=load_config, inputs=[config_path], outputs=inputs)
 demo.launch(share=True)

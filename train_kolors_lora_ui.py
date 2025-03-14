@@ -29,6 +29,7 @@
 # 20240710 add kolors training, dir kolors copied from https://github.com/Kwai-Kolors/Kolors
 # from diffusers.models.attention_processor import AttnProcessor2_0
 from diffusers.models.model_loading_utils import load_model_dict_into_meta
+from torch.utils.data.distributed import DistributedSampler
 # import jsonlines
 
 import safetensors
@@ -457,6 +458,13 @@ def parse_args(input_args=None):
         help="Max time steps limitation. The training timesteps would limited as this value. 0 to max_time_steps",
     )
 
+    parser.add_argument(
+		"--local_rank",
+		type=int,
+		default=-1,
+		help="For distributed training: local_rank (managed by Accelerate)",
+	)
+
     if input_args is not None:
         args = parser.parse_args(input_args)
     else:
@@ -481,9 +489,11 @@ def parse_args(input_args=None):
     return args
 
 def main(args):
-
-    if not os.path.exists(args.output_dir): os.makedirs(args.output_dir)
-    if not os.path.exists(args.logging_dir): os.makedirs(args.logging_dir)
+	# 创建输出和日志目录
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+    if not os.path.exists(args.logging_dir):
+        os.makedirs(args.logging_dir)
 
     # args.scale_lr = False
     use_8bit_adam = True
@@ -562,14 +572,18 @@ def main(args):
 
     logging_dir = "test"
     accelerator_project_config = ProjectConfiguration(project_dir=args.output_dir, logging_dir=logging_dir)
-    kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
-    accelerator = Accelerator(
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
-        mixed_precision=args.mixed_precision,
-        log_with=None,
-        project_config=accelerator_project_config,
-        kwargs_handlers=[kwargs],
-    )
+	kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+	accelerator = Accelerator(
+		gradient_accumulation_steps=args.gradient_accumulation_steps,
+		mixed_precision=args.mixed_precision,
+		log_with=None if args.report_to == "" else args.report_to,  # 支持 wandb 等
+		project_config=accelerator_project_config,
+		kwargs_handlers=[kwargs],
+	)
+
+	# 设置随机种子（确保每个进程一致）
+	if args.seed is not None:
+		set_seed(args.seed)
 
     # For mixed precision training we cast all non-trainable weights (vae, non-lora text_encoder and non-lora transformer) to half-precision
     # as these weights are only used for inference, keeping weights in full precision is not required.
@@ -774,7 +788,7 @@ def main(args):
         #     single_image_training = len(image_files) == 1
 
         val_metadata_datarows = []
-        if os.path.exists(val_metadata_path):
+        if accelerator.is_main_process and os.path.exists(val_metadata_path):
             with open(val_metadata_path, "r", encoding='utf-8') as readfile:
                 val_metadata_datarows = json.loads(readfile.read())
                 # remove images in metadata_datarows or val_metadata_datarows but not in image_files, handle deleted images
@@ -1060,7 +1074,31 @@ def main(args):
             "time_ids": time_ids,
         }
     # create dataset based on input_dir
-    train_dataset = CachedImageDataset(datarows,conditional_dropout_percent=args.caption_dropout)
+    train_dataset = CachedImageDataset(datarows, conditional_dropout_percent=args.caption_dropout)
+
+    # 使用 DistributedSampler 进行数据分片
+	train_sampler = DistributedSampler(
+		train_dataset,
+		num_replicas=accelerator.num_processes,
+		rank=accelerator.process_index,
+		shuffle=True,
+	)
+
+	# 使用 BucketBatchSampler 配合 DistributedSampler
+	bucket_batch_sampler = BucketBatchSampler(
+		train_dataset,
+		batch_size=args.train_batch_size,
+		drop_last=True,
+		sampler=train_sampler,  # 将 DistributedSampler 传递给 BucketBatchSampler
+	)
+
+	# 初始化 DataLoader
+	train_dataloader = torch.utils.data.DataLoader(
+		train_dataset,
+		batch_sampler=bucket_batch_sampler,
+		collate_fn=collate_fn,
+		num_workers=dataloader_num_workers,
+	)
 
     # referenced from everyDream discord minienglish1 shared script
     #create bucket batch sampler
@@ -1103,9 +1141,11 @@ def main(args):
         num_cycles=lr_num_cycles,
         power=lr_power,
     )
-    unet, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-        unet, optimizer, train_dataloader, lr_scheduler
-    )
+
+	# 准备模型、优化器、数据加载器和调度器
+	unet, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+		unet, optimizer, train_dataloader, lr_scheduler
+	)
 
 
     # We need to initialize the trackers we use, and also store our configuration.
@@ -1183,6 +1223,8 @@ def main(args):
     max_time_steps = noise_scheduler.config.num_train_timesteps
     if args.max_time_steps is not None and args.max_time_steps > 0:
         max_time_steps = args.max_time_steps
+
+	# 训练循环
     for epoch in range(first_epoch, args.num_train_epochs):
         unet.train()
         for step, batch in enumerate(train_dataloader):
@@ -1245,17 +1287,18 @@ def main(args):
 
                         loss = loss.mean()
 
-                    # Backpropagate
-                    accelerator.backward(loss)
-                    step_loss = loss.detach().item()
-                    del loss, latents, target, model_pred,  timesteps,  bsz, noise, noisy_model_input
-                    if accelerator.sync_gradients:
-                        params_to_clip = unet_lora_parameters
-                        accelerator.clip_grad_norm_(params_to_clip, max_grad_norm)
+                    # 反向传播
+					accelerator.backward(loss)
+					step_loss = loss.detach().item()
+					del loss, latents, target, model_pred, timesteps, bsz, noise, noisy_model_input
 
-                    optimizer.step()
-                    lr_scheduler.step()
-                    optimizer.zero_grad()
+					if accelerator.sync_gradients:
+						params_to_clip = unet_lora_parameters
+						accelerator.clip_grad_norm_(params_to_clip, max_grad_norm)
+
+					optimizer.step()
+					lr_scheduler.step()
+					optimizer.zero_grad()
 
                     # Checks if the accelerator has performed an optimization step behind the scenes
                     #post batch check for gradient updates
@@ -1264,17 +1307,19 @@ def main(args):
                         progress_bar.update(1)
                         global_step += 1
 
-                    lr = lr_scheduler.get_last_lr()[0]
-                    lr_name = "lr"
-                    if args.optimizer == "prodigy":
-                        if resume_step>0 and resume_step == global_step:
-                            lr = 0
-                        else:
-                            lr = lr_scheduler.optimizers[-1].param_groups[0]["d"] * lr_scheduler.optimizers[-1].param_groups[0]["lr"]
-                        lr_name = "lr/d*lr"
-                    logs = {"step_loss": step_loss, lr_name: lr, "epoch": epoch}
-                    accelerator.log(logs, step=global_step)
-                    progress_bar.set_postfix(**logs)
+					# 日志只在主进程输出
+					if accelerator.is_main_process:
+						lr = lr_scheduler.get_last_lr()[0]
+						lr_name = "lr"
+						if args.optimizer == "prodigy":
+							if resume_step > 0 and resume_step == global_step:
+								lr = 0
+							else:
+								lr = lr_scheduler.optimizers[-1].param_groups[0]["d"] * lr_scheduler.optimizers[-1].param_groups[0]["lr"]
+							lr_name = "lr/d*lr"
+						logs = {"step_loss": step_loss, lr_name: lr, "epoch": epoch}
+						accelerator.log(logs, step=global_step)
+						progress_bar.set_postfix(**logs)
 
                     if global_step >= max_train_steps:
                         break
@@ -1297,11 +1342,9 @@ def main(args):
 
         if accelerator.is_main_process:
             if (epoch >= args.skip_epoch and epoch % args.save_model_epochs == 0) or epoch == args.num_train_epochs - 1:
-                accelerator.wait_for_everyone()
-                if accelerator.is_main_process:
-                    save_path = os.path.join(args.output_dir, f"{args.save_name}-{global_step}")
-                    accelerator.save_state(save_path)
-                    logger.info(f"Saved state to {save_path}")
+				save_path = os.path.join(args.output_dir, f"{args.save_name}-{global_step}")
+				accelerator.save_state(save_path)
+				logger.info(f"Saved state to {save_path}")
 
             # only execute when val_metadata_path exists
             if ((epoch >= args.skip_epoch and epoch % args.validation_epochs == 0) or epoch == args.num_train_epochs - 1) and os.path.exists(val_metadata_path):
