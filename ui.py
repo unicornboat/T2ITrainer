@@ -29,7 +29,7 @@ default_config = {
     "mixed_precision":"fp16",
     "gradient_checkpointing":True,
     "optimizer":"adamw",
-    "lr_scheduler":"restart",
+    "lr_scheduler":"cosine_with_restarts",
     "learning_rate":1e-4,
     "lr_warmup_steps":0,
     "seed":4321,
