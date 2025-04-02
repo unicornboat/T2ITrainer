@@ -13,38 +13,38 @@ default_config = {
                         "train_flux_lora_ui_with_mask.py"
                     #    "train_hunyuan_lora_ui.py","train_sd3_lora_ui.py"
                        ],
-    "output_dir":"F:/models/flux",
-    "save_name":"flux-lora",
-    "pretrained_model_name_or_path":"F:/T2ITrainer/flux_models/fill", # or local folder F:\Kolors
-    "train_data_dir":"F:/ImageSet/fill", 
+    "output_dir":"/content/output",
+    "save_name":"lora",
+    "pretrained_model_name_or_path":"/content/models/model.safetensors", # or local folder F:\Kolors
+    "train_data_dir":"/content/dataset/YOUR_TRAINING_DATA",
     # "vae_path":None, # or local file
     "resume_from_checkpoint":None,
-    "model_path":None, 
+    "model_path":None,
     # "logging_dir":"logs",
-    "report_to":"wandb", 
+    "report_to":"wandb",
     "rank":32,
     "train_batch_size":1,
     "repeats":10,
     "gradient_accumulation_steps":1,
-    "mixed_precision":"bf16",
+    "mixed_precision":"fp16",
     "gradient_checkpointing":True,
     "optimizer":"adamw",
-    "lr_scheduler":"constant", 
-    "learning_rate":1e-4,
+    "lr_scheduler":"constant",
+    "learning_rate":5e-4,
     "lr_warmup_steps":0,
     "seed":4321,
-    "num_train_epochs":5,
-    "save_model_epochs":1, 
-    "validation_epochs":1, 
-    "skip_epoch":0, 
+    "num_train_epochs":10,
+    "save_model_epochs":1,
+    "validation_epochs":1,
+    "skip_epoch":0,
     # "break_epoch":0,
-    "skip_step":0, 
-    "validation_ratio":0.1, 
+    "skip_step":0,
+    "validation_ratio":0.1,
     # "use_dora":False,
     "recreate_cache":False,
     "caption_dropout":0.1,
     "config_path":"config.json",
-    "resolution":"512",
+    "resolution":"1024",
     "resolution_choices":["1024","512"],
     "use_debias":False,
     "snr_gamma":0,
@@ -58,7 +58,7 @@ default_config = {
 
 
 # Function to save configuration to a specified directory
-def save_config( 
+def save_config(
         config_path,
         script,
         seed,
@@ -177,7 +177,7 @@ def load_config(config_path):
     # print(config)
     for key in config.keys():
         default_config[key] = config[key]
-            
+
     # print("default_config")
     # print(default_config)
     return config_path,default_config['script'],default_config['seed'], \
@@ -193,10 +193,10 @@ def load_config(config_path):
             default_config['caption_dropout'], \
             default_config['cosine_restarts'],default_config['max_time_steps'], \
             default_config['blocks_to_swap'],default_config['mask_dropout']
-            
+
             # default_config['use_dora'], \
             # default_config['freeze_transformer_layers']
-            # default_config['logging_dir'],default_config['break_epoch'], 
+            # default_config['logging_dir'],default_config['break_epoch'],
 
 # load config.json by default
 load_config("config.json")
@@ -248,7 +248,7 @@ def run(
     #         msg = "Vae need to be a single file ends with .safetensors. It should be the fp16 fix vae from https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/tree/main"
     #         gr.Warning(msg)
     #         return msg
-    
+
     inputs = {
         "seed":seed,
         # "logging_dir":logging_dir,
@@ -302,7 +302,7 @@ def run(
             else:
                 args.append(f"--{key}")
                 args.append(str(value))
-                
+
     # Call the script with the arguments
     subprocess.call(args)
     save_config(
@@ -350,7 +350,7 @@ def run(
     )
     # print(args)
     return " ".join(args)
-    
+
 
 with gr.Blocks() as demo:
     gr.Markdown(
@@ -372,8 +372,8 @@ with gr.Blocks() as demo:
             save_name = gr.Textbox(label="save_name", value=default_config["save_name"],
                                    placeholder="checkpoint save name")
         with gr.Row():
-            pretrained_model_name_or_path = gr.Textbox(label="pretrained_model_name_or_path", 
-                value=default_config["pretrained_model_name_or_path"], 
+            pretrained_model_name_or_path = gr.Textbox(label="pretrained_model_name_or_path",
+                value=default_config["pretrained_model_name_or_path"],
                 placeholder="repo name or dir contains diffusers model structure"
             )
             resume_from_checkpoint = gr.Textbox(label="resume_from_checkpoint", value=default_config["resume_from_checkpoint"], placeholder="resume the lora weight from seleted dir")
@@ -383,7 +383,7 @@ with gr.Blocks() as demo:
             # logging_dir = gr.Textbox(label="logging_dir", value=default_config["logging_dir"], placeholder="logs folder")
         with gr.Row():
             report_to = gr.Dropdown(label="report_to", value=default_config["report_to"], choices=["wandb"])
-            
+
 
     with gr.Accordion("Lora Config"):
         # train related section
@@ -399,7 +399,7 @@ with gr.Blocks() as demo:
             # use_dora = gr.Checkbox(label="use_dora", value=default_config["use_dora"])
         with gr.Row():
             optimizer = gr.Dropdown(label="optimizer", value=default_config["optimizer"], choices=["adamw","prodigy"])
-            lr_scheduler = gr.Dropdown(label="lr_scheduler", value=default_config["lr_scheduler"], 
+            lr_scheduler = gr.Dropdown(label="lr_scheduler", value=default_config["lr_scheduler"],
                         choices=["linear", "cosine", "cosine_with_restarts", "polynomial","constant", "constant_with_warmup"])
             cosine_restarts = gr.Number(label="cosine_restarts", value=default_config["cosine_restarts"], info="Only useful for lr_scheduler: cosine_with_restarts", minimum=1)
         with gr.Row():
@@ -410,7 +410,7 @@ with gr.Blocks() as demo:
             blocks_to_swap = gr.Number(label="blocks_to_swap", value=default_config["blocks_to_swap"], info="How many blocks to swap to cpu. It is suggested 10 for 24 GB and more for lower VRAM" )
             mask_dropout = gr.Number(label="mask_dropout", value=default_config["mask_dropout"], info="Dropout mask which means mask is all one for whole image reconstruction" )
         #     freeze_transformer_layers = gr.Textbox(label="freeze_transformer_layers", value=default_config["freeze_transformer_layers"], info="Stop training the transformer layers included in the input using ',' to seperate layers. Example: 5,7,10,17,18,19" )
-            
+
     with gr.Accordion("Misc"):
         with gr.Row():
             num_train_epochs = gr.Number(label="num_train_epochs", value=default_config["num_train_epochs"], info="Total epoches of the training")
@@ -421,7 +421,7 @@ with gr.Blocks() as demo:
             # break_epoch = gr.Number(label="break_epoch", value=default_config["break_epoch"], info="Stop train after x epoches")
             skip_step = gr.Number(label="skip_step", value=default_config["skip_step"], info="Skip x steps for validation and save checkpoint")
             validation_ratio = gr.Number(label="validation_ratio", value=default_config["validation_ratio"], info="Split dataset with this ratio for validation")
-            
+
         with gr.Row():
             recreate_cache = gr.Checkbox(label="recreate_cache", value=default_config["recreate_cache"])
             # use_debias = gr.Checkbox(label="use_debias", value=default_config["use_debias"])
@@ -431,7 +431,7 @@ with gr.Blocks() as demo:
         gr.Markdown(
 """
 ## Experiment Option: resolution
-- Based target resolution (default:1024). 
+- Based target resolution (default:1024).
 - 512 or 1024 are supported.
 """)
         with gr.Row():
@@ -484,4 +484,4 @@ with gr.Blocks() as demo:
     run_btn.click(fn=run, inputs=inputs, outputs=output, api_name="run")
     save_config_btn.click(fn=save_config, inputs=inputs)
     load_config_btn.click(fn=load_config, inputs=[config_path], outputs=inputs)
-demo.launch()
+demo.launch(share=True)
