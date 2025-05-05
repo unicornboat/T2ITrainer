@@ -30,7 +30,7 @@ default_config = {
     "gradient_checkpointing":True,
     "optimizer":"adamw",
     "lr_scheduler":"cosine_with_restarts",
-    "learning_rate":0.0005,
+    "learning_rate":0.0001,
     "lr_warmup_steps":0,
     "seed":4321,
     "num_train_epochs":20,
